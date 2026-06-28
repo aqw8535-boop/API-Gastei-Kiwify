@@ -36,24 +36,39 @@ async def webhook(data: KiwifyWebhook):
     status_venda = data.status.strip().lower()
     product_id = str(data.Product.product_id).strip()
     
-    # ⚠️ Troque pelos IDs reais da sua Kiwify
-    ID_PLANO_ANUAL = "123456"      
-    ID_PLANO_VITALICIO = "789101"  
+    # 🛠️ ABAIXO VOCÊ SÓ PRECISA ADICIONAR OS IDS DA KIWIFY SEPARADOS POR VÍRGULA
+    # Pode colocar quantos IDs antigos e novos quiser dentro dos colchetes!
+    IDS_MENSAL = ["90bcae92-0b07-4919-aa0e-f34efcd6c6a5"]
+    IDS_ANUAL = ["7f83238d-7f05-4f61-82e0-53d6a94e84c4"]      
+    IDS_VITALICIO = ["1993e4d4-26ce-4969-af81-47cba5f51bc8"]  
 
     conn = get_db_connection()
     cur = conn.cursor()
 
     try:
+        # Se a Kiwify avisar que o pagamento foi aprovado
         if status_venda == "approved":
-            if product_id == ID_PLANO_ANUAL:
-                tipo_licenca = "assinatura"
+            
+            # 1. Checa se o ID pertence a algum plano MENSAL
+            if product_id in IDS_MENSAL:
+                tipo_licenca = "mensal"
+                expira_em = date.today() + timedelta(days=30)
+                
+            # 2. Checa se o ID pertence a algum plano ANUAL
+            elif product_id in IDS_ANUAL:
+                tipo_licenca = "anual"
                 expira_em = date.today() + timedelta(days=365)
-            elif product_id == ID_PLANO_VITALICIO:
+                
+            # 3. Checa se o ID pertence a algum plano VITALÍCIO
+            elif product_id in IDS_VITALICIO:
                 tipo_licenca = "vitalicio"
-                expira_em = None
+                expira_em = None # Fica NULL no banco, acesso infinito
+                
+            # Se a Kiwify mandar um ID que você não cadastrou nas listas acima
             else:
-                return {"status": "ignored", "message": "Produto invalido"}
+                return {"status": "ignored", "message": f"Produto ID {product_id} nao mapeado"}
 
+            # Faz o Insert ou Update atualizando o plano e a nova data de expiracao
             query = """
                 INSERT INTO licencas_ativas (email, tipo_licenca, expira_em, criado_em)
                 VALUES (%s, %s, %s, NOW())
@@ -62,14 +77,16 @@ async def webhook(data: KiwifyWebhook):
             """
             cur.execute(query, (email, tipo_licenca, expira_em))
             conn.commit()
-            return {"status": "success"}
+            return {"status": "success", "plan_applied": tipo_licenca}
 
+        # Se o cliente pedir reembolso ou a operadora der Chargeback, remove o acesso
         elif status_venda in ["refunded", "chargedback"]:
             cur.execute("DELETE FROM licencas_ativas WHERE email = %s;", (email,))
             conn.commit()
-            return {"status": "success"}
+            return {"status": "success", "message": "Acesso removido por reembolso"}
 
-        return {"status": "ignored"}
+        return {"status": "ignored", "message": "Status nao relevante"}
+        
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
