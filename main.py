@@ -30,7 +30,7 @@ class KiwifyWebhook(BaseModel):
     Product: ProductModel
     Customer: CustomerModel
 
-@app.post("/kiwify")
+@app.post("/")
 async def webhook(data: KiwifyWebhook):
     email = data.Customer.email.strip().lower()
     status_venda = data.status.strip().lower()
