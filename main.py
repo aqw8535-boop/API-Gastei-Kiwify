@@ -14,11 +14,19 @@ DB_PASS = os.getenv("DB_PASS")
 DB_PORT = os.getenv("DB_PORT", "5432")
 
 def get_db_connection():
+    # Se você estiver usando a string tradicional, o truque do Supabase é colocar o "options" com o ID do projeto:
+    # Mas a forma mais limpa é usar a Connection String direta que o Supabase te dá no painel deles.
+    
+    # Vamos adaptar a sua função atual para forçar o Supabase a aceitar:
     return psycopg2.connect(
-        host=DB_HOST, database=DB_NAME, user=DB_USER, 
-        password=DB_PASS, port=DB_PORT, sslmode="require"
+        host=DB_HOST, 
+        database=DB_NAME, 
+        user=DB_USER, 
+        password=DB_PASS, 
+        port=DB_PORT, 
+        sslmode="require",
+        options="-c search_path=public" # Força a inicialização limpa no pooler
     )
-
 class ProductModel(BaseModel):
     product_id: str
 
